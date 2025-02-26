@@ -56,6 +56,13 @@
     console.log('Model loaded successfully.');
   }
 
+  function speak(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // Set language (optional)
+    utterance.rate = 0.9; // Slower speech rate
+    window.speechSynthesis.speak(utterance);
+  }
+
   async function identifyObject() {
     const video = document.getElementById('camera');
     const resultDiv = document.getElementById('result');
@@ -64,20 +71,25 @@
       const predictions = await net.classify(video);
       if (predictions && predictions.length > 0) {
         const topPrediction = predictions[0];
-        resultDiv.textContent = `I see: ${topPrediction.className} (${Math.round(topPrediction.probability * 100)}%)`;
+        const resultText = `I see: ${topPrediction.className} (${Math.round(topPrediction.probability * 100)}%)`;
+        resultDiv.textContent = resultText;
+
+        // Speak the detected object
+        speak(resultText);
       } else {
         resultDiv.textContent = 'Unable to identify object.';
       }
     }
 
-    requestAnimationFrame(identifyObject);
+    // Schedule the next detection after 3 seconds
+    setTimeout(identifyObject, 3000);
   }
 
   async function main() {
     try {
       await loadModel();
       await setupCamera();
-      identifyObject();
+      identifyObject(); // Start the identification loop
     } catch (error) {
       console.error('Error:', error);
       document.getElementById('result').textContent = 'Error initializing app.';
