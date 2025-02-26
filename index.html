@@ -57,7 +57,7 @@
 <button id="switchCameraButton">Switch Camera</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/ssd-mobilenet-v2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 <script>
   let model;
   let video;
@@ -86,8 +86,8 @@
   }
 
   async function loadModel() {
-    console.log('Loading SSD MobileNet V2 model...');
-    model = await ssdMobilenetv2.load();
+    console.log('Loading COCO-SSD model...');
+    model = await cocoSsd.load();
     console.log('Model loaded successfully.');
   }
 
@@ -183,6 +183,7 @@
     } catch (error) {
       console.error('Error:', error);
       document.getElementById('result').textContent = 'Error initializing app.';
+      alert(`Error: ${error.message}`);
     }
   }
 
