@@ -17,7 +17,7 @@
   }
   #camera {
     width: 100%;
-    max-width: 400px;
+    max-width: 600px;
     margin-bottom: 20px;
   }
   #result {
@@ -25,24 +25,35 @@
     font-weight: bold;
     color: #28a745;
   }
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 600px;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <h1>Object Detection App</h1>
-<p>Point your camera at an object to identify it.</p>
+<p>Point your camera at objects to detect them.</p>
 <video id="camera" autoplay playsinline></video>
-<div id="result">Identifying...</div>
+<canvas id="canvas"></canvas>
+<div id="result">Detecting...</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 <script>
-  let net;
+  let model;
+  let video;
+  let canvas;
+  let ctx;
 
   async function setupCamera() {
-    const video = document.getElementById('camera');
+    video = document.getElementById('camera');
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream;
-
     return new Promise((resolve) => {
       video.onloadedmetadata = () => {
         resolve(video);
@@ -51,9 +62,33 @@
   }
 
   async function loadModel() {
-    console.log('Loading MobileNet model...');
-    net = await mobilenet.load();
+    console.log('Loading COCO-SSD model...');
+    model = await cocoSsd.load();
     console.log('Model loaded successfully.');
+  }
+
+  function drawBoundingBoxes(predictions) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    predictions.forEach(prediction => {
+      const [x, y, width, height] = prediction.bbox;
+      // Draw bounding box
+      ctx.strokeStyle = '#28a745';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+
+      // Draw label background
+      ctx.fillStyle = '#28a745';
+      const textHeight = 16;
+      ctx.fillRect(x, y, ctx.measureText(prediction.class).width + 10, textHeight);
+
+      // Draw label text
+      ctx.fillStyle = '#fff';
+      ctx.font = `${textHeight}px Arial`;
+      ctx.fillText(prediction.class, x + 5, y + 14);
+    });
   }
 
   function speak(text) {
@@ -63,33 +98,33 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  async function identifyObject() {
-    const video = document.getElementById('camera');
-    const resultDiv = document.getElementById('result');
-
-    if (net && video.readyState === video.HAVE_ENOUGH_DATA) {
-      const predictions = await net.classify(video);
-      if (predictions && predictions.length > 0) {
+  async function detectObjects() {
+    if (model && video.readyState === video.HAVE_ENOUGH_DATA) {
+      const predictions = await model.detect(video);
+      if (predictions.length > 0) {
         const topPrediction = predictions[0];
-        const resultText = `I see: ${topPrediction.className} (${Math.round(topPrediction.probability * 100)}%)`;
-        resultDiv.textContent = resultText;
-
-        // Speak the detected object
+        const resultText = `I see: ${topPrediction.class} (${Math.round(topPrediction.score * 100)}%)`;
+        document.getElementById('result').textContent = resultText;
         speak(resultText);
+
+        // Draw bounding boxes on the canvas
+        drawBoundingBoxes(predictions);
       } else {
-        resultDiv.textContent = 'Unable to identify object.';
+        document.getElementById('result').textContent = 'No objects detected.';
       }
     }
-
-    // Schedule the next detection after 3 seconds
-    setTimeout(identifyObject, 3000);
+    // Schedule the next detection after 1 second
+    setTimeout(detectObjects, 1000);
   }
 
   async function main() {
     try {
+      canvas = document.getElementById('canvas');
+      ctx = canvas.getContext('2d');
+
       await loadModel();
       await setupCamera();
-      identifyObject(); // Start the identification loop
+      detectObjects(); // Start the detection loop
     } catch (error) {
       console.error('Error:', error);
       document.getElementById('result').textContent = 'Error initializing app.';
