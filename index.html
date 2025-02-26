@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Object Detection App</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f4f9;
+  }
+  h1 {
+    color: #333;
+  }
+  #camera {
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 20px;
+  }
+  #result {
+    font-size: 24px;
+    font-weight: bold;
+    color: #28a745;
+  }
+</style>
+</head>
+<body>
+<h1>Object Detection App</h1>
+<p>Point your camera at an object to identify it.</p>
+<video id="camera" autoplay playsinline></video>
+<div id="result">Identifying...</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+<script>
+  let net;
+
+  async function setupCamera() {
+    const video = document.getElementById('camera');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+
+    return new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        resolve(video);
+      };
+    });
+  }
+
+  async function loadModel() {
+    console.log('Loading MobileNet model...');
+    net = await mobilenet.load();
+    console.log('Model loaded successfully.');
+  }
+
+  async function identifyObject() {
+    const video = document.getElementById('camera');
+    const resultDiv = document.getElementById('result');
+
+    if (net && video.readyState === video.HAVE_ENOUGH_DATA) {
+      const predictions = await net.classify(video);
+      if (predictions && predictions.length > 0) {
+        const topPrediction = predictions[0];
+        resultDiv.textContent = `I see: ${topPrediction.className} (${Math.round(topPrediction.probability * 100)}%)`;
+      } else {
+        resultDiv.textContent = 'Unable to identify object.';
+      }
+    }
+
+    requestAnimationFrame(identifyObject);
+  }
+
+  async function main() {
+    try {
+      await loadModel();
+      await setupCamera();
+      identifyObject();
+    } catch (error) {
+      console.error('Error:', error);
+      document.getElementById('result').textContent = 'Error initializing app.';
+    }
+  }
+
+  main();
+</script>
+</body>
+</html>
