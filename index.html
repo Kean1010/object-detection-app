@@ -33,6 +33,19 @@
     max-width: 600px;
     pointer-events: none;
   }
+  #switchCameraButton {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #switchCameraButton:hover {
+    background-color: #218838;
+  }
 </style>
 </head>
 <body>
@@ -41,6 +54,7 @@
 <video id="camera" autoplay playsinline></video>
 <canvas id="canvas"></canvas>
 <div id="result">Detecting...</div>
+<button id="switchCameraButton">Switch Camera</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
@@ -49,16 +63,26 @@
   let video;
   let canvas;
   let ctx;
+  let currentFacingMode = 'environment'; // Start with the rear camera
+  let lastSpokenText = ''; // Track the last spoken text to avoid repetition
 
   async function setupCamera() {
-    video = document.getElementById('camera');
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    return new Promise((resolve) => {
-      video.onloadedmetadata = () => {
-        resolve(video);
-      };
-    });
+    const constraints = {
+      video: { facingMode: currentFacingMode }
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      return new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          resolve(video);
+        };
+      });
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Unable to access camera. Please check permissions.');
+    }
   }
 
   async function loadModel() {
@@ -92,6 +116,16 @@
   }
 
   function speak(text) {
+    // Cancel any ongoing or queued speech
+    window.speechSynthesis.cancel();
+
+    // Avoid repeating the same text
+    if (text === lastSpokenText) return;
+
+    // Update the last spoken text
+    lastSpokenText = text;
+
+    // Create and speak the new utterance
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US'; // Set language (optional)
     utterance.rate = 0.9; // Slower speech rate
@@ -105,6 +139,8 @@
         const topPrediction = predictions[0];
         const resultText = `I see: ${topPrediction.class} (${Math.round(topPrediction.score * 100)}%)`;
         document.getElementById('result').textContent = resultText;
+
+        // Speak the latest detection result
         speak(resultText);
 
         // Draw bounding boxes on the canvas
@@ -117,14 +153,33 @@
     setTimeout(detectObjects, 1000);
   }
 
+  async function toggleCamera() {
+    // Toggle between 'user' (front camera) and 'environment' (rear camera)
+    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+
+    // Stop the current video stream
+    const stream = video.srcObject;
+    if (stream) {
+      const tracks = stream.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+
+    // Reinitialize the camera with the new facing mode
+    await setupCamera();
+  }
+
   async function main() {
     try {
+      video = document.getElementById('camera');
       canvas = document.getElementById('canvas');
       ctx = canvas.getContext('2d');
 
       await loadModel();
       await setupCamera();
       detectObjects(); // Start the detection loop
+
+      // Add event listener for the "Switch Camera" button
+      document.getElementById('switchCameraButton').addEventListener('click', toggleCamera);
     } catch (error) {
       console.error('Error:', error);
       document.getElementById('result').textContent = 'Error initializing app.';
