@@ -65,6 +65,8 @@
   let ctx;
   let currentFacingMode = 'environment'; // Start with the rear camera
   let lastSpokenText = ''; // Track the last spoken text to avoid repetition
+  let isSpeaking = false; // Flag to track if speech is in progress
+  let pendingUtterance = null; // Queue for pending utterances
 
   async function setupCamera() {
     const constraints = {
@@ -116,19 +118,36 @@
   }
 
   function speak(text) {
-    // Cancel any ongoing or queued speech
-    window.speechSynthesis.cancel();
-
     // Avoid repeating the same text
     if (text === lastSpokenText) return;
 
     // Update the last spoken text
     lastSpokenText = text;
 
+    // If speech is already in progress, queue the new utterance
+    if (isSpeaking) {
+      pendingUtterance = text;
+      return;
+    }
+
+    // Mark speech as in progress
+    isSpeaking = true;
+
     // Create and speak the new utterance
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US'; // Set language (optional)
     utterance.rate = 0.9; // Slower speech rate
+
+    // When the utterance ends, process the pending utterance
+    utterance.onend = () => {
+      isSpeaking = false;
+      if (pendingUtterance) {
+        const nextUtterance = pendingUtterance;
+        pendingUtterance = null;
+        speak(nextUtterance); // Speak the next queued utterance
+      }
+    };
+
     window.speechSynthesis.speak(utterance);
   }
 
